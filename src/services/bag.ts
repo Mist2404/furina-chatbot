@@ -7,6 +7,8 @@ declare module "koishi" {
 }
 
 export class BagService extends Service {
+  static inject = ['database', 'petItems'];
+
   constructor(ctx: Context) {
     super(ctx, "petBag");
   }

@@ -6,13 +6,25 @@ import { ItemService } from "./services/item";
 import { BagService } from './services/bag'
 import { html } from './templates/html'
 import * as CoreModule from './modules/core'
+import * as ChatModule from './modules/chat'
+
 export const name = "furina-chatbot";
 
-export interface Config { }
+export interface Config {
+  openaiApiKey: string;
+  openaiBaseUrl: string;
+  openaiModel: string;
+  systemPrompt: string;
+}
 
 export const inject = ["database"];
 
-export const Config: Schema<Config> = Schema.object({});
+export const Config: Schema<Config> = Schema.object({
+  openaiApiKey: Schema.string().description("OpenAI API Key (如不填写则聊天不可用)"),
+  openaiBaseUrl: Schema.string().default("https://api.openai.com/v1").description("OpenAI Base URL"),
+  openaiModel: Schema.string().default("gpt-3.5-turbo").description("OpenAI Model"),
+  systemPrompt: Schema.string().role("textarea").default("你是芙宁娜。你现在的状态是：心情 {mood}/100，饱食度 {hunger}/100，口渴度 {thirst}/100，疲劳度 {fatigue}/100。如果用户说的话让你心情变化，请在回复末尾附带 #心情+1#, #饱食度-5#（以此类推，必须是这种格式，支持 + 或 - 变化）。请根据当前状态自然地回复群友。").description("系统提示词"),
+});
 
 export function apply(ctx: Context, config: Config) {
   // write your plugin here
@@ -25,35 +37,21 @@ export function apply(ctx: Context, config: Config) {
   ctx.plugin(BagService)
 
   ctx.plugin(CoreModule)
+  ctx.plugin(ChatModule, config)
   // 2. 写临时指令测试
   ctx.inject(["petStatus", "petItems", "petBag"], (ctx) => {
     ctx
-      .command("pet-test", "查看宠物状态")
-      .userFields([
-        "id",
-        "hunger",
-        "mood",
-        "affinity",
-        "thirst",
-        "fatigue",
-        "lastUpdate",
-      ])
+      .command("pet.test", "查看宠物状态")
       .action(async ({ session }) => {
-        // session.user 会自动获取数据库里的数据
-        if (!session.user) return;
-
-        const user = await ctx.petStatus.checkUpdate(session.user.id);
-        const { hunger, mood, thirst, fatigue, lastUpdate } = user;
+        const status = await ctx.petStatus.checkUpdate();
+        const { hunger, mood, thirst, fatigue, lastUpdate } = status;
         return `你的芙芙当前状态：\n饱食度: ${hunger}\n心情: ${mood}\n口渴度${thirst}\n疲劳值${fatigue}\n上次更新${lastUpdate}`;
       });
 
     ctx
       .command("feed", "投喂测试")
-      .userFields(["id", "hunger"])
       .action(async ({ session }) => {
-        // 调用服务
-        // console.log("feed pet");
-        const current = await ctx.petStatus.addHunger(session.user.id, 10);
+        const current = await ctx.petStatus.addHunger(10);
         return `投喂成功！当前饱食度：${current}`;
       });
 
@@ -109,8 +107,9 @@ export function apply(ctx: Context, config: Config) {
 
         return `🎒 你的背包：\n${listString}\n\n输入 "use <物品ID>" 可以使用。`
       })
+  });
 
-
+  ctx.inject(["puppeteer"], (ctx) => {
     ctx.command('test_shelf', '测试货架渲染')
       .action(async () => {
         // 生成 9 个格子的空货架 HTML

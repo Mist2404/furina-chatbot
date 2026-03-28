@@ -15,90 +15,88 @@ const CONFIG = {
 };
 
 export class StatusService extends Service {
+  static inject = ['database'];
+
   constructor(ctx: Context) {
     super(ctx, "petStatus");
   }
 
+  async getBotStatus() {
+    let [status] = await this.ctx.database.get("bot_status", { id: 1 });
+    if (!status) {
+      status = await this.ctx.database.create("bot_status", { id: 1 });
+    }
+    return status;
+  }
+
   // 增加/减少 饱食度
-  async addHunger(userId: number, amount: number) {
-    const [user] = await this.ctx.database.get("user", { id: userId });
-
-
-    if (!user) return;
-    // 简单的数值限制逻辑
-
-    let newHunger = user.hunger + amount;
+  async addHunger(amount: number) {
+    const status = await this.getBotStatus();
+    let newHunger = status.hunger + amount;
     if (newHunger > 100) newHunger = 100;
     if (newHunger < 0) newHunger = 0;
 
-    await this.ctx.database.set("user", { id: userId }, { hunger: newHunger });
+    await this.ctx.database.set("bot_status", { id: 1 }, { hunger: newHunger });
     return newHunger;
   }
 
-  async addMood(userId: number, amount: number) {
-    const [user] = await this.ctx.database.get("user", { id: userId });
-    if (!user) return;
-    // 简单的数值限制逻辑
-    let newMood = user.mood + amount;
+  async addMood(amount: number) {
+    const status = await this.getBotStatus();
+    let newMood = status.mood + amount;
     if (newMood > 100) newMood = 100;
     if (newMood < 0) newMood = 0;
 
-    await this.ctx.database.set("user", { id: userId }, { mood: newMood });
+    await this.ctx.database.set("bot_status", { id: 1 }, { mood: newMood });
     return newMood;
   }
 
-  async addThirst(userId: number, amount: number) {
-    const [user] = await this.ctx.database.get("user", { id: userId });
-    if (!user) return;
-    // 简单的数值限制逻辑
-    let newThirst = user.thirst + amount;
+  async addThirst(amount: number) {
+    const status = await this.getBotStatus();
+    let newThirst = status.thirst + amount;
     if (newThirst > 100) newThirst = 100;
     if (newThirst < 0) newThirst = 0;
 
-    await this.ctx.database.set("user", { id: userId }, { thirst: newThirst });
+    await this.ctx.database.set("bot_status", { id: 1 }, { thirst: newThirst });
     return newThirst;
   }
 
   // 增加疲劳度(越低越疲劳)
-  async addFatigue(userId: number, amount: number) {
-    const [user] = await this.ctx.database.get("user", { id: userId });
-    if (!user) return;
-    // 简单的数值限制逻辑
-    let newFatigue = user.fatigue + amount;
+  async addFatigue(amount: number) {
+    const status = await this.getBotStatus();
+    let newFatigue = status.fatigue + amount;
     if (newFatigue > 100) newFatigue = 100;
     if (newFatigue < 0) newFatigue = 0;
 
-    await this.ctx.database.set("user", { id: userId }, { fatigue: newFatigue });
+    await this.ctx.database.set("bot_status", { id: 1 }, { fatigue: newFatigue });
     return newFatigue;
   }
 
-  async checkUpdate(userId: number) {
-    const [user] = await this.ctx.database.get("user", { id: userId });
-    if (!user) return;
+  async checkUpdate() {
+    const status = await this.getBotStatus();
 
     // 获取当前时间
     const now = Date.now();
     // 用户第一次交互
-    if (user.lastUpdate == 0) {
-      await this.ctx.database.set("user", { id: userId }, { lastUpdate: now });
-      return user;
+    if (status.lastUpdate == 0) {
+      await this.ctx.database.set("bot_status", { id: 1 }, { lastUpdate: now });
+      return status;
     }
 
     // 计算距离上次交互时间差
-    const diffMillis = now - user.lastUpdate;
+    const diffMillis = now - status.lastUpdate;
     const diffHours = diffMillis / (1000 * 60 * 60);
 
-    if (diffHours < 0.016) return user;
+    if (diffHours < 0.016) return status;
     // 3. 计算扣除数值
     const hungerLost = Math.floor(diffHours * CONFIG.HUNGER_DECAY_PER_HOUR);
     const moodLost = Math.floor(diffHours * CONFIG.MOOD_DECAY_PER_HOUR);
     const thirstLost = Math.floor(diffHours * CONFIG.THIRST_DECAY_PER_HOUR);
 
     // 4. 应用扣除 (确保不低于 0)
-    const newHunger = Math.max(0, user.hunger - hungerLost);
-    const newMood = Math.max(0, user.mood - moodLost);
-    const newThirst = Math.max(0, user.thirst - thirstLost);
-    const newFatigue = Math.max(0, user.fatigue - diffHours * CONFIG.FATIGUE_DECAY_PER_HOUR);
+    const newHunger = Math.max(0, status.hunger - hungerLost);
+    const newMood = Math.max(0, status.mood - moodLost);
+    const newThirst = Math.max(0, status.thirst - thirstLost);
+    const newFatigue = Math.max(0, status.fatigue - diffHours * CONFIG.FATIGUE_DECAY_PER_HOUR);
 
     let finalMood = newMood;
     if (newHunger < 20) {
@@ -107,8 +105,8 @@ export class StatusService extends Service {
     }
 
     await this.ctx.database.set(
-      "user",
-      { id: userId },
+      "bot_status",
+      { id: 1 },
       {
         hunger: newHunger,
         mood: finalMood,
@@ -119,7 +117,7 @@ export class StatusService extends Service {
     );
 
     return {
-      ...user,
+      ...status,
       hunger: newHunger,
       mood: finalMood,
       thirst: newThirst,
