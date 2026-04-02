@@ -4,11 +4,6 @@ import { Config } from '../index'
 
 export const name = 'pet-module-chat'
 
-export interface AITool {
-  definition: OpenAI.Chat.Completions.ChatCompletionTool;
-  execute: (args: any) => Promise<string>;
-}
-
 export function apply(ctx: Context, config: Config) {
   // 只有在配置了 apiKey 时才启动大模型
   if (!config.openaiApiKey) {
@@ -21,44 +16,8 @@ export function apply(ctx: Context, config: Config) {
     baseURL: config.openaiBaseUrl,
   })
 
-  // 1. 初始化工具中枢 (Tools Registry)
-  const toolRegistry = new Map<string, AITool>();
-
-  // 2. 注册一个测试工具
-  toolRegistry.set('get_dummy_character_info', {
-    definition: {
-      type: "function",
-      function: {
-        name: "get_dummy_character_info",
-        description: "获取指定游戏角色的详细数据、背景设定或属性信息。",
-        parameters: {
-          type: "object",
-          properties: {
-            character_name: {
-              type: "string",
-              description: "需要查询的角色名字，如：胡桃、钟离",
-            },
-          },
-          required: ["character_name"],
-        },
-      }
-    },
-    execute: async (args: any) => {
-      const { character_name } = args;
-      ctx.logger.info(`[工具被调用] 查询角色资料: ${character_name}`);
-
-      if (character_name === '胡桃') {
-        return JSON.stringify({ name: '胡桃', hp: 15552, atk: 106, description: '往生堂第七十七代堂主' });
-      } else if (character_name === '钟离') {
-        return JSON.stringify({ name: '钟离', hp: 14695, atk: 251, description: '往生堂客卿，其实是岩王帝君' });
-      } else {
-        return `未找到关于 ${character_name} 的资料。`;
-      }
-    }
-  });
-
-  // 依赖 petStatus
-  ctx.inject(['petStatus'], (ctx) => {
+  // 依赖 petStatus 和 aiTool
+  ctx.inject(['petStatus', 'aiTool'], (ctx) => {
     ctx.middleware(async (session, next) => {
       // 只有 at 机器人，或者是在私聊，才触发大模型
       const selfId = session.bot.selfId || session.bot.userId;
@@ -100,7 +59,7 @@ export function apply(ctx: Context, config: Config) {
           { role: 'user', content: content }
         ];
         ctx.logger.info("construct message");
-        const tools = Array.from(toolRegistry.values()).map(t => t.definition);
+        const tools = ctx.aiTool.getTools();
 
         let completion = await openai.chat.completions.create({
           model: config.openaiModel,
@@ -110,14 +69,19 @@ export function apply(ctx: Context, config: Config) {
 
         let responseMessage = completion.choices[0]?.message;
 
-        if (responseMessage && responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+        while (responseMessage && responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
           messages.push(responseMessage as OpenAI.Chat.Completions.ChatCompletionMessageParam);
 
           for (const toolCall of responseMessage.tool_calls) {
             const functionName = (toolCall as any).function.name;
-            const functionArgs = JSON.parse((toolCall as any).function.arguments);
+            let functionArgs = {};
+            try {
+              functionArgs = JSON.parse((toolCall as any).function.arguments);
+            } catch (err) {
+              ctx.logger.warn(`工具参数解析失败: ${(toolCall as any).function.arguments}`);
+            }
 
-            const registeredTool = toolRegistry.get(functionName);
+            const registeredTool = ctx.aiTool.get(functionName);
             let functionResult = "";
 
             if (registeredTool) {
@@ -133,13 +97,14 @@ export function apply(ctx: Context, config: Config) {
             messages.push({
               tool_call_id: toolCall.id,
               role: "tool",
-              content: functionResult,
+              content: String(functionResult),
             } as OpenAI.Chat.Completions.ChatCompletionToolMessageParam);
           }
 
           completion = await openai.chat.completions.create({
             model: config.openaiModel,
             messages: messages,
+            tools: tools.length > 0 ? tools : undefined,
           });
 
           responseMessage = completion.choices[0]?.message;

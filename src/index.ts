@@ -4,6 +4,7 @@ import * as Database from "./database";
 import { StatusService } from "./services/status";
 import { ItemService } from "./services/item";
 import { BagService } from './services/bag'
+import { AIToolService } from './services/aitool'
 import { html } from './templates/html'
 import * as CoreModule from './modules/core'
 import * as ChatModule from './modules/chat'
@@ -34,7 +35,8 @@ export function apply(ctx: Context, config: Config) {
   ctx.plugin(ItemService);
   ctx.plugin(Database);
   ctx.plugin(StatusService);
-  ctx.plugin(BagService)
+  ctx.plugin(BagService);
+  ctx.plugin(AIToolService);
 
   ctx.plugin(CoreModule)
   ctx.plugin(ChatModule, config)
@@ -53,6 +55,13 @@ export function apply(ctx: Context, config: Config) {
       .action(async ({ session }) => {
         const current = await ctx.petStatus.addHunger(10);
         return `投喂成功！当前饱食度：${current}`;
+      });
+
+    ctx
+      .command("resetStatus", "重置宠物状态")
+      .action(async ({ session }) => {
+        const current = await ctx.petStatus.resetStatus();
+        return `重置成功！当前饱食度：${current.hunger}，心情：${current.mood}，口渴度：${current.thirst}，疲劳度：${current.fatigue}`;
       });
 
     ctx

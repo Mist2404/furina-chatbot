@@ -8,10 +8,10 @@ declare module "koishi" {
 }
 
 const CONFIG = {
-  HUNGER_DECAY_PER_HOUR: 0.6, // 每小时饿 0.6 点
-  MOOD_DECAY_PER_HOUR: 0.2, // 每小时心情掉 0.2 点
-  THIRST_DECAY_PER_HOUR: 1.2, // 每小时渴 0.4 点
-  FATIGUE_DECAY_PER_HOUR: 0.8, // 每小时疲劳掉 0.8 点
+  HUNGER_DECAY_PER_HOUR: 0, // 每小时饿 0.6 点
+  MOOD_DECAY_PER_HOUR: 0, // 每小时心情掉 0.2 点
+  THIRST_DECAY_PER_HOUR: 0, // 每小时渴 0.4 点
+  FATIGUE_DECAY_PER_HOUR: 0, // 每小时疲劳掉 0.8 点
 };
 
 export class StatusService extends Service {
@@ -125,7 +125,34 @@ export class StatusService extends Service {
     };
   }
 
+  async resetStatus() {
+    const status = await this.getBotStatus();
+    let newHunger = 100;
+    if (newHunger > 100) newHunger = 100;
+    if (newHunger < 0) newHunger = 0;
 
+    let newMood = 100;
+    if (newMood > 100) newMood = 100;
+    if (newMood < 0) newMood = 0;
+
+    let newFatigue = 100;
+    if (newFatigue > 100) newFatigue = 100;
+    if (newFatigue < 0) newFatigue = 0;
+
+    let newThirst = 100;
+    if (newThirst > 100) newThirst = 100;
+    if (newThirst < 0) newThirst = 0;
+
+
+    await this.ctx.database.set("bot_status", { id: 1 }, { hunger: newHunger, mood: newMood, thirst: newThirst, fatigue: newFatigue });
+
+    return {
+      hunger: newHunger,
+      mood: newMood,
+      thirst: newThirst,
+      fatigue: newFatigue,
+    }
+  }
 
 
 
