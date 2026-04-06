@@ -285,5 +285,274 @@ export const html = {
   `;
 
 
+  },
+
+  getRecruitResult(data: any) {
+    if (!data || !data.combinations) return '<div>No Data</div>';
+
+    // 过滤出有价值的组合（至少包含一个 >=4 星的干员）
+    const validCombinations = data.combinations.map((combo: any) => {
+      const highRarityOps = combo.operators.filter((op: any) => op.rarity >= 4);
+      // 按照星级降序排序
+      highRarityOps.sort((a: any, b: any) => b.rarity - a.rarity);
+      return {
+        ...combo,
+        operators: highRarityOps
+      };
+    }).filter((combo: any) => combo.operators.length > 0);
+
+    const getRarityColor = (rarity: number) => {
+      if (rarity === 6) return '#ffb300'; // 金色
+      if (rarity === 5) return '#ffca28'; // 黄色
+      if (rarity === 4) return '#b388ff'; // 紫色
+      return '#cccccc';
+    };
+
+    const getRarityShadow = (rarity: number) => {
+      if (rarity === 6) return '0 0 10px rgba(255, 179, 0, 0.4)';
+      if (rarity === 5) return '0 0 8px rgba(255, 202, 40, 0.3)';
+      if (rarity === 4) return '0 0 6px rgba(179, 136, 255, 0.2)';
+      return 'none';
+    };
+
+    return `
+  <!DOCTYPE html>
+  <html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
+      
+      html, body {
+        width: fit-content;
+        height: fit-content;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+      }
+      body {
+        padding: 15px;
+        font-family: 'Noto Sans SC', sans-serif;
+      }
+      .recruit-container {
+        width: 580px;
+        background: #1a1a1a;
+        background-image: 
+          linear-gradient(45deg, #111 25%, transparent 25%, transparent 75%, #111 75%, #111), 
+          linear-gradient(45deg, #111 25%, transparent 25%, transparent 75%, #111 75%, #111);
+        background-size: 20px 20px;
+        background-position: 0 0, 10px 10px;
+        border: 2px solid #333;
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+        overflow: hidden;
+      }
+      .header {
+        background: linear-gradient(90deg, #2a2a2a, #1a1a1a);
+        border-bottom: 2px solid #ffb300;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .header h1 {
+        color: #fff;
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+      .header .sub-title {
+        color: #aaa;
+        font-size: 12px;
+      }
+      .tags-input {
+        padding: 10px 20px;
+        background: rgba(0, 0, 0, 0.4);
+        border-bottom: 1px solid #333;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .tags-input span {
+        color: #aaa;
+        font-size: 13px;
+        margin-right: 5px;
+      }
+      .tag-badge {
+        background: #333;
+        color: #ddd;
+        border: 1px solid #555;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 13px;
+      }
+      .content {
+        padding: 15px 20px;
+      }
+      .combo-card {
+        background: rgba(30, 30, 30, 0.9);
+        border-left: 4px solid #fff;
+        border-radius: 4px 8px 8px 4px;
+        padding: 15px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        transition: transform 0.2s;
+      }
+      .combo-card:last-child {
+        margin-bottom: 0;
+      }
+      .combo-tags {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+      }
+      .combo-tag {
+        background: #eee;
+        color: #111;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .operators-grid {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+      }
+      .operator-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 64px;
+      }
+      .avatar-wrap {
+        width: 56px;
+        height: 56px;
+        border-radius: 6px;
+        border: 2px solid;
+        overflow: hidden;
+        background: #000;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .avatar-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        color: transparent;
+      }
+      .op-name {
+        color: #eee;
+        font-size: 12px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+        font-weight: bold;
+      }
+      .combo-status {
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        margin-left: auto;
+      }
+      .guaranteed-high {
+        background: rgba(255, 179, 0, 0.15);
+        color: #ffb300;
+        border: 1px solid rgba(255, 179, 0, 0.4);
+      }
+      .possible-low {
+        background: rgba(255, 82, 82, 0.1);
+        color: #ff5252;
+        border: 1px dashed rgba(255, 82, 82, 0.4);
+      }
+      .empty-notice {
+        color: #888;
+        font-size: 14px;
+        text-align: center;
+        padding: 20px;
+      }
+      .watermark {
+        text-align: right;
+        padding: 10px 20px;
+        color: #555;
+        font-size: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Script ensure fonts and images loading finishes before koishi takes snapshot -->
+    <script>
+      window.onload = function() {
+        const images = document.querySelectorAll('img');
+        let loaded = 0;
+        if(images.length === 0) return;
+        images.forEach(img => {
+          if(img.complete) {
+            loaded++;
+          } else {
+            img.addEventListener('load', () => { loaded++; });
+            img.addEventListener('error', () => { loaded++; });
+          }
+        });
+      };
+    </script>
+    <div class="recruit-container">
+      <div class="header">
+        <h1>HR RECRUITMENT</h1>
+        <div class="sub-title">公开招募网络演算终端</div>
+      </div>
+      
+      <div class="tags-input">
+        <span>收到标签：</span>
+        ${data.tags_received.map((tag: string) => `<div class="tag-badge">${tag}</div>`).join('')}
+      </div>
+
+      <div class="content">
+        ${validCombinations.length === 0 ? '<div class="empty-notice">⚠️ 未找到必定包含4星及以上干员的标签组合。</div>' : ''}
+        
+        ${validCombinations.map((combo: any) => {
+      // 根据组合里最高星级决定边框颜色
+      const maxRarity = combo.operators.length > 0 ? combo.operators[0].rarity : 4;
+      const cardBorderColor = getRarityColor(maxRarity);
+      const shadow = getRarityShadow(maxRarity);
+
+      return `
+            <div class="combo-card" style="border-left-color: ${cardBorderColor}; box-shadow: ${shadow};">
+              <div class="combo-tags">
+                ${combo.combination.map((tag: string) => `<div class="combo-tag">${tag}</div>`).join('')}
+                ${combo.min_rarity >= 4 ? `<div class="combo-status guaranteed-high">必定★4及以上</div>` : ''}
+                ${combo.min_rarity <= 3 ? `<div class="combo-status possible-low">含有★3及以下可能</div>` : ''}
+              </div>
+              <div class="operators-grid">
+                ${combo.operators.map((op: any) => `
+                  <div class="operator-item">
+                    <div class="avatar-wrap" style="border-color: ${getRarityColor(op.rarity)};">
+                      <img referrerpolicy="no-referrer" src="${op.avatar_url}" alt="${op.name}" />
+                    </div>
+                    <div class="op-name" style="color: ${getRarityColor(op.rarity)};">${op.name}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+    }).join('')}
+      </div>
+      
+      <div class="watermark">FURINA BOT ENGINE // PRTS DATA // ONLY SHOWS ≥ ★4</div>
+    </div>
+  </body>
+  </html>
+    `;
   }
 }
